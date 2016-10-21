@@ -4,6 +4,10 @@
     Created By qianlitp 24/9/2016
 
     filePath参数没有完成，功能不完全
+--------------------------------------------
+    Revised By qianlitp 21/10/2016
+
+    添加filePath功能，完善文件传输
 """
 import os
 import sys
@@ -22,6 +26,7 @@ port = 0
 bufferSize = 4096
 filePath = ""
 
+
 # print the usage
 def usage():
     print("""
@@ -37,15 +42,17 @@ def usage():
     print("     -c --command                 - initialize a command shell")
     print("     -u --upload=destination      - upon receiving connection upload a file and write to [destination], "
           "you must use '-f' to load a file at Client.")
+    print()
     print(" Client:")
     print("     -b --bufferSize=size         - the bufferSize of receiving output.When you receiving the incomplete "
           "result, trying to increase it. default=4096.")
     print("     -f --file=filePath           - the path of file you want to load")
     print()
     print(" Examples: ")
-    print("     PyShell.py -t 192.168.0.1 -p 2222 -l -c")
-    print("     PyShell.py -t 192.168.0.1 -p 2222 -l -u=c:/target.exe")
-    print("     PyShell.py -t 192.168.0.1 -p 2222 -l -e=\"cat /etc/passwd\"")
+    print("     PyShell.py -p 2222 -l -c (server) | PyShell.py -t 10.10.139.59 -p 2222 (client)")
+    print("     PyShell.py -p 2222 -l -u=/usr/local/target.bak (server) | "
+          "PyShell.py -t 10.10.139.59 -p 2222 -f /usr/lcoal/myFile (client)")
+    # print("     PyShell.py -t 192.168.0.1 -p 2222 -l -e=\"cat /etc/passwd\"")
     sys.exit(0)
 
 
@@ -96,12 +103,22 @@ def main():
         server_loop()
 
 
+# the client
 def client_sender():
     global bufferSize
+    global filePath
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
     # try:
     client.connect((target, port))
+
+    if len(filePath):
+        file_uploader = open(filePath, 'r')
+        try:
+            file_content = file_uploader.read()
+        finally:
+            file_uploader.close()
+        client.send(bytes(file_content, 'utf-8'))
 
     while True:
         recv_len = 1
@@ -129,6 +146,7 @@ def client_sender():
     #     client.close()
 
 
+# the server
 def server_loop():
     global target
 
@@ -147,6 +165,7 @@ def server_loop():
         client_thread.start()
 
 
+# run the command
 def run_command(cmd):
     try:
         output = subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=True)
@@ -160,34 +179,31 @@ def client_hander(client_socket):
     global execute
     global command
     global bufferSize
+    global upload_destination
 
+    # receive the file and save it
     if len(upload_destination):
+        data_len = bufferSize
         file_buffer = ""
-
-        while True:
-            data = client_socket.recv(bufferSize)
-
-            if not data:
-                break
-            else:
-                file_buffer += data
-
+        while data_len == bufferSize:
+            data = client_socket.recv(bufferSize).decode('utf-8')
+            data_len = len(data)
+            file_buffer += data
         try:
-            file_descriptor = open(upload_destination, "wb")
+            file_descriptor = open(upload_destination, "w")
             file_descriptor.write(file_buffer)
             file_descriptor.close()
-
-            client_socket.send("Successfully saved file to %s\r\n" % upload_destination)
+            client_socket.send(bytes("Successfully saved file to %s\r\n" % upload_destination, 'utf-8'))
         except:
-            client_socket.send("Failed to save file to %s\r\n" % upload_destination)
-
+            client_socket.send(bytes("Failed to save file to %s\r\n" % upload_destination, 'utf-8'))
+    # execute the given command
     if len(execute):
         output = run_command(execute)
         try:
             client_socket.send(output)
         except:
             client_socket.send(bytes(output, 'utf-8'))
-
+    # command shell
     if command:
         client_socket.send(bytes("Connect Successful, input your command \n"
                                  + os.path.abspath('.'), 'utf-8'))
@@ -202,6 +218,7 @@ def client_hander(client_socket):
                 response += '\r\n'
                 response += os.path.abspath('.')
                 client_socket.send(bytes(response, 'utf-8'))
+
 
 if __name__ == '__main__':
     main()
