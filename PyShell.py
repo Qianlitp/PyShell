@@ -1,11 +1,11 @@
 #!/usr/bin/python3
 # -*- coding: UTF-8 -*-
 """
-    Created By qianlitp 24/9/2016
+    Created By 9ian1i 24/9/2016
 
     filePath参数没有完成，功能不完全
 --------------------------------------------
-    Revised By qianlitp 21/10/2016
+    Revised By 9ian1i 21/10/2016
 
     添加filePath功能，完善文件传输
 """
